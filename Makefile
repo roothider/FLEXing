@@ -1,6 +1,11 @@
 export ARCHS = arm64 armv7 armv7s arm64e
 export TARGET = iphone:latest:9.0
 INSTALL_TARGET_PROCESSES = SpringBoard
+
+THEOS_PACKAGE_SCHEME ?= roothide
+FINALPACKAGE = 1
+DEBUG ?= 0
+
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = FLEXing

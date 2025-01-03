@@ -8,6 +8,7 @@
 
 
 #import "Interfaces.h"
+#include <roothide.h>
 
 BOOL initialized = NO;
 id manager = nil;
@@ -23,8 +24,8 @@ static Class (*FLXWindowClass)();
 inline bool isLikelyUIProcess() {
     NSString *executablePath = NSProcessInfo.processInfo.arguments[0];
 
-    return [executablePath hasPrefix:@"/var/containers/Bundle/Application"] ||
-        [executablePath hasPrefix:@"/Applications"] ||
+    return ([executablePath hasPrefix:@"/var/containers/Bundle/Application/"] && strstr(executablePath.UTF8String,".app/"))  ||
+        (strstr(executablePath.UTF8String,"/Applications/") && strstr(executablePath.UTF8String,".app/")) ||
         [executablePath hasSuffix:@"CoreServices/SpringBoard.app/SpringBoard"];
 }
 
@@ -38,8 +39,8 @@ inline BOOL flexAlreadyLoaded() {
 } 
 
 %ctor {
-    NSString *standardPath = @"/Library/MobileSubstrate/DynamicLibraries/libFLEX.dylib";
-    NSString *reflexPath =   @"/Library/MobileSubstrate/DynamicLibraries/libreflex.dylib";
+    NSString *standardPath = jbroot(@"/Library/MobileSubstrate/DynamicLibraries/libFLEX.dylib");
+    NSString *reflexPath =   jbroot(@"/Library/MobileSubstrate/DynamicLibraries/libreflex.dylib");
     NSFileManager *disk = NSFileManager.defaultManager;
     NSString *libflex = nil;
     NSString *libreflex = nil;
@@ -72,6 +73,7 @@ inline BOOL flexAlreadyLoaded() {
         // This is so users don't get their accounts locked.
         if (isLikelyUIProcess() && !isSnapchatApp()) {
             handle = dlopen(libflex.UTF8String, RTLD_LAZY);
+            // NSLog(@"FLEXing libFlex=%p", handle);
             
             if (libreflex) {
                 dlopen(libreflex.UTF8String, RTLD_NOW);
@@ -112,6 +114,7 @@ inline BOOL flexAlreadyLoaded() {
     BOOL needsGesture = ![windowsWithGestures containsObject:self];
     BOOL isFLEXWindow = [self isKindOfClass:FLXWindowClass()];
     BOOL isStatusBar  = [self isKindOfClass:[UIStatusBarWindow class]];
+    NSLog(@"FLEXing becomeKeyWindow=%@ %d,%d,%d", [self class], needsGesture , !isFLEXWindow , !isStatusBar);
     if (needsGesture && !isFLEXWindow && !isStatusBar) {
         [windowsWithGestures addObject:self];
 
@@ -129,6 +132,7 @@ inline BOOL flexAlreadyLoaded() {
 - (id)initWithFrame:(CGRect)frame {
     self = %orig;
     
+    NSLog(@"FLEXing UIStatusBarWindow=%d", initialized);
     if (initialized) {
         // Add long-press gesture to status bar
         [self addGestureRecognizer:[[UILongPressGestureRecognizer alloc] initWithTarget:manager action:show]];
@@ -144,23 +148,26 @@ inline BOOL flexAlreadyLoaded() {
 }
 %end
 
+/*
 %hook _UISheetPresentationController
 - (id)initWithPresentedViewController:(id)present presentingViewController:(id)presenter {
     self = %orig;
     if ([present isKindOfClass:%c(FLEXNavigationController)]) {
+        NSLog(@"FLEXing initWithPresentedViewController=%@", self);
         // Enable half height sheet
-        self._presentsAtStandardHalfHeight = YES;
+        //invliad on ios15 //self._presentsAtStandardHalfHeight = YES;
         // Start fullscreen, 0 for half height
         self._indexOfCurrentDetent = 1;
         // Don't expand unless dragged up
         self._prefersScrollingExpandsToLargerDetentWhenScrolledToEdge = NO;
         // Don't dim first detent
-        self._indexOfLastUndimmedDetent = 1;
+        self._indexOfLastUndimmedDetent = 1; //???crash on ios15
     }
     
     return self;
 }
 %end
+*/
 
 %hook FLEXManager
 %new
