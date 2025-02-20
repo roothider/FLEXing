@@ -2,7 +2,7 @@ Package: com.pantsthief.flexing
 Name: FLEXing
 Pre-Depends: firmware (>= 8.0)
 Depends: libflex, mobilesubstrate
-Version: 1.5.1
+Version: 1.5.2
 Architecture: iphoneos-arm
 Description: Open FLEX anywhere!  aka FLEXTool/FLEXList
   .

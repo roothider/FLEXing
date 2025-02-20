@@ -38,6 +38,60 @@ inline BOOL flexAlreadyLoaded() {
     return NSClassFromString(@"FLEXExplorerToolbar") != nil;
 } 
 
+%group AppHook
+%hook UIApplication
+- (void)sendEvent:(UIEvent *)event {
+    %orig;
+
+    if (!initialized) {
+        return;
+    }
+
+    if (event.type == UIEventTypeTouches) {
+        NSSet *touches = [event allTouches];
+
+        //NSLog(@"FLEXing sendEvent type=%d, count=%d", event.type, touches.count);
+    
+        if (touches.count == 3) {
+            BOOL allTouchesBegan = YES;
+            int i=0;
+            // for (UITouch *touch in touches) {
+            //     NSLog(@"FLEXing touch[%d] phase=%d", i++, touch.phase);
+            // }
+            for (UITouch *touch in touches) {
+                if (touch.phase != UITouchPhaseBegan && touch.phase != UITouchPhaseStationary) {
+                    allTouchesBegan = NO;
+                    break;
+                }
+            }
+            if (allTouchesBegan) {
+                NSLog(@"FLEXing sendEvent start");
+                [self performSelector:@selector(flexHandleThreeFingerLongPress) withObject:nil afterDelay:0.5];
+            } else {
+                BOOL allTouchesEndedOrCancelled = NO;
+                for (UITouch *touch in touches) {
+                    if (touch.phase == UITouchPhaseEnded || touch.phase == UITouchPhaseCancelled) {
+                        allTouchesEndedOrCancelled = YES;
+                        break;
+                    }
+                }
+                if (allTouchesEndedOrCancelled) {
+                    NSLog(@"FLEXing sendEvent cancel");
+                    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(flexHandleThreeFingerLongPress) object:nil];
+                }
+            }
+        }
+    }
+}
+
+%new
+- (void)flexHandleThreeFingerLongPress {
+    NSLog(@"FLEXing flexHandleThreeFingerLongPress");
+    [manager performSelector:show];
+}
+%end
+%end
+
 %ctor {
     NSString *standardPath = jbroot(@"/Library/MobileSubstrate/DynamicLibraries/libFLEX.dylib");
     NSString *reflexPath =   jbroot(@"/Library/MobileSubstrate/DynamicLibraries/libreflex.dylib");
@@ -97,11 +151,22 @@ inline BOOL flexAlreadyLoaded() {
             initialized = YES;
         }
     }
+
+    if(![NSBundle.mainBundle.bundleIdentifier isEqualToString:@"com.apple.springboard"]) {
+        %init(AppHook);
+    }
+    %init;
 }
 
 %hook UIWindow
 - (BOOL)_shouldCreateContextAsSecure {
     return (initialized && [self isKindOfClass:FLXWindowClass()]) ? YES : %orig;
+}
+
+%new
+- (void)flexGestureHandler:(UILongPressGestureRecognizer *)recognizer {
+    NSLog(@"FLEXing flexGestureHandler=%@", self);
+    [manager performSelector:show];
 }
 
 - (void)becomeKeyWindow {
@@ -114,12 +179,12 @@ inline BOOL flexAlreadyLoaded() {
     BOOL needsGesture = ![windowsWithGestures containsObject:self];
     BOOL isFLEXWindow = [self isKindOfClass:FLXWindowClass()];
     BOOL isStatusBar  = [self isKindOfClass:[UIStatusBarWindow class]];
-    NSLog(@"FLEXing becomeKeyWindow=%@ %d,%d,%d", [self class], needsGesture , !isFLEXWindow , !isStatusBar);
+    NSLog(@"FLEXing becomeKeyWindow=%@/%p %d,%d,%d", [self class], self, needsGesture , !isFLEXWindow , !isStatusBar);
     if (needsGesture && !isFLEXWindow && !isStatusBar) {
         [windowsWithGestures addObject:self];
 
         // Add 3-finger long-press gesture for apps without a status bar
-        UILongPressGestureRecognizer *tap = [[UILongPressGestureRecognizer alloc] initWithTarget:manager action:show];
+        UILongPressGestureRecognizer *tap = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(flexGestureHandler:)];
         tap.minimumPressDuration = .5;
         tap.numberOfTouchesRequired = 3;
 
